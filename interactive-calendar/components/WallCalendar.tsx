@@ -17,10 +17,14 @@ export default function WallCalendar() {
   const [direction, setDirection] = useState(0);
 
   const [monthNotes, setMonthNotes] = useState<Record<string, string>>({});
+  const [singleDateNotes, setSingleDateNotes] = useState<Record<string, string>>(
+    {}
+  );
   const [rangeNotes, setRangeNotes] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const savedMonthNotes = getFromStorage("monthNotes", {});
+    const savedSingleDateNotes = getFromStorage("singleDateNotes", {});
     const savedRangeNotes = getFromStorage("rangeNotes", {});
     const savedRange = getFromStorage("selectedRange", {
       start: null,
@@ -28,6 +32,7 @@ export default function WallCalendar() {
     });
 
     setMonthNotes(savedMonthNotes);
+    setSingleDateNotes(savedSingleDateNotes);
     setRangeNotes(savedRangeNotes);
 
     if (savedRange.start) setRangeStart(new Date(savedRange.start));
@@ -37,6 +42,10 @@ export default function WallCalendar() {
   useEffect(() => {
     saveToStorage("monthNotes", monthNotes);
   }, [monthNotes]);
+
+  useEffect(() => {
+    saveToStorage("singleDateNotes", singleDateNotes);
+  }, [singleDateNotes]);
 
   useEffect(() => {
     saveToStorage("rangeNotes", rangeNotes);
@@ -59,6 +68,9 @@ export default function WallCalendar() {
     if (compareAsc(date, rangeStart) < 0) {
       setRangeEnd(rangeStart);
       setRangeStart(date);
+    } else if (getDateKey(date) === getDateKey(rangeStart)) {
+      // same date clicked again → keep as single date selection
+      setRangeEnd(null);
     } else {
       setRangeEnd(date);
     }
@@ -66,11 +78,23 @@ export default function WallCalendar() {
 
   const monthKey = format(currentMonth, "yyyy-MM");
 
-  const selectedRangeKey = useMemo(() => {
-    if (!rangeStart) return "none";
-    if (!rangeEnd) return getDateKey(rangeStart);
-    return `${getDateKey(rangeStart)}_${getDateKey(rangeEnd)}`;
+  const singleDateKey = useMemo(() => {
+    if (rangeStart && !rangeEnd) return getDateKey(rangeStart);
+    return null;
   }, [rangeStart, rangeEnd]);
+
+  const rangeKey = useMemo(() => {
+    if (rangeStart && rangeEnd) {
+      return `${getDateKey(rangeStart)}_${getDateKey(rangeEnd)}`;
+    }
+    return null;
+  }, [rangeStart, rangeEnd]);
+
+  const selectedSingleDateNote = singleDateKey
+    ? singleDateNotes[singleDateKey] || ""
+    : "";
+
+  const selectedRangeNote = rangeKey ? rangeNotes[rangeKey] || "" : "";
 
   const handleNext = () => {
     setDirection(1);
@@ -115,7 +139,7 @@ export default function WallCalendar() {
                 x: direction > 0 ? -80 : 80,
               }}
               transition={{ duration: 0.55, ease: "easeInOut" }}
-              className="grid md:grid-cols-[1fr_1.25fr] min-h-[650px]"
+              className="grid md:grid-cols-[0.95fr_1.2fr] min-h-[650px]"
               style={{ transformStyle: "preserve-3d" }}
             >
               <HeroSection currentMonth={currentMonth} />
@@ -161,16 +185,30 @@ export default function WallCalendar() {
 
                 <NotesSection
                   monthNote={monthNotes[monthKey] || ""}
-                  selectedNote={rangeNotes[selectedRangeKey] || ""}
+                  singleDateNote={selectedSingleDateNote}
+                  rangeNote={selectedRangeNote}
+                  isSingleDateSelected={!!singleDateKey}
+                  isRangeSelected={!!rangeKey}
+                  selectedSingleDate={singleDateKey}
+                  selectedRange={rangeKey}
                   onMonthNoteChange={(value) =>
                     setMonthNotes((prev) => ({ ...prev, [monthKey]: value }))
                   }
-                  onSelectedNoteChange={(value) =>
+                  
+                  onSingleDateNoteChange={(value) => {
+                    if (!singleDateKey) return;
+                    setSingleDateNotes((prev) => ({
+                      ...prev,
+                      [singleDateKey]: value,
+                    }));
+                  }}
+                  onRangeNoteChange={(value) => {
+                    if (!rangeKey) return;
                     setRangeNotes((prev) => ({
                       ...prev,
-                      [selectedRangeKey]: value,
-                    }))
-                  }
+                      [rangeKey]: value,
+                    }));
+                  }}
                 />
               </div>
             </motion.div>
